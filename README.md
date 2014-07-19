@@ -79,3 +79,4 @@ v. 	Add first admin entry to login db manually
 	insert into login values ('First Last', 'userid', '6321acfbf468d15a8w9ab7693c92ee07', 'id@email.com','','','userid', 1, 1);
 
 	Note that for the users that do not have managers, use their own userid as managers.
+vi.	Add database credential at sql_con() in index.php.
