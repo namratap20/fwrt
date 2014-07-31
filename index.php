@@ -1,20 +1,24 @@
 <?php
 /*
-    Free Weekly Report Tool
-    Copyright (C) 2014 Namrata Powar, Yogi P
+     Free Weekly Report Tool
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
+    Copyright (C) 2014 Namrata Powar <namrata.pawar10@gmail.com>
+    and Yogi P <yogi@vadactro.org.in>.
+
+    This file is part of Free Weekly Report Tool (FWRT).
+
+    FWRT is free software: you can redistribute it and/or modify
+    it under the terms of the GNU affero General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+    any later version.
 
-    This program is distributed in the hope that it will be useful,
+    FWRT is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+    GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+    You should have received a copy of the GNU Affero General Public License
+    along with FWRT.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -792,25 +796,23 @@ case 3:
 	break;
 case 4:
 	/* License */
-	print 'Free Weekly Report Tool<br><br>
-    	    Copyright (C) 2014 Namrata [namrata.pawar10 at gmail.com] and<br>
-    	    Yogi [yogi at vadactro.org.in] <br><br>
+	print ' Free Weekly Report Tool <br><br>
+		Copyright (C) 2014 Namrata Powar <namrata.pawar10@gmail.com><br>
+		and Yogi P <yogi@vadactro.org.in>.<br><br>
+		FWRT is free software: you can redistribute it and/or modify<br>
+		it under the terms of the GNU affero General Public License as published by<br>
+		the Free Software Foundation, either version 3 of the License, or<br>
+		any later version.<br><br>
+		FWRT is distributed in the hope that it will be useful,<br>
+		but WITHOUT ANY WARRANTY; without even the implied warranty of<br>
+		MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br>
+		GNU Affero General Public License for more details.<br><br>
 
-	    This program is free software: you can redistribute it and/or modify<br>
-	    it under the terms of the GNU General Public License as published by<br>
-	    the Free Software Foundation, either version 3 of the License, or<br>
-	    any later version.<br><br>
-
-	    This program is distributed in the hope that it will be useful,<br>
-	    but WITHOUT ANY WARRANTY; without even the implied warranty of<br>
-	    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the<br>
-	    GNU General Public License for more details.<br><br>
-
-	    You should have received a copy of the GNU General Public License<br>
-	    along with this program.  If not, see http://www.gnu.org/licenses/.';
+		You should have received a copy of the GNU Affero General Public License<br>
+		along with FWRT.  If not, see <http://www.gnu.org/licenses/>.';
 	print '<hr><a href="?">Back</a>';
 	break;
-	
+
 case 5:
 	/* reset password */
 	$reset = make_safe($_POST['reset']);
