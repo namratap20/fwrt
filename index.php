@@ -25,8 +25,13 @@
  * Change Database username, password and database name
  */
 function sql_con() {
-	$_SESSION['con'] = mysql_connect("localhost", "db_user", "db_userpass") or die(mysql_error());
-	mysql_select_db("wrt_db") or die(mysql_error());
+	$configs = include('config.php');
+	$_SESSION['con'] = mysql_connect($configs['dbhost'],
+					 $configs['dbuser'],
+					 $configs['dbpass'])
+			   or die(mysql_error());
+
+	mysql_select_db($configs['dbname']) or die(mysql_error());
 }
 
 /*
@@ -67,7 +72,7 @@ function get_week($count)
 
 
 function make_safe($variable) {
-	sql_con();
+//	sql_con();
     $variable = mysql_real_escape_string(trim($variable));
     return $variable;
 }
@@ -172,7 +177,7 @@ function show_create_form($week, $rows)
 	<td><input type="submit" name="submit" value="submit"> </td> </tr>
 	</table>
 	</form>';
-	print '<hr><a href="?method=1">Back</a>';
+	print '<hr><a href="?method=1">Back</a> <a href="?">Home</a>';
 }
 
 /*
@@ -403,6 +408,76 @@ function print_login_form($user, $password, $userErr, $passErr)
 	</form>';
 print '</body> </html>';
 }
+/*
+ * Function to create config.php
+ */
+function create_config_file($dbname, $dbuser, $dbpass, $dbhost, $email, $pass)
+{
+	$myfile = fopen("config.php", "w") or die("Unable to open file!");
+
+	$txt = "<?php\n\n return array(\n";
+	print $txt;
+	fwrite($myfile, $txt);
+	$txt = "'dbname' => '".$dbname."',\n";
+	fwrite($myfile, $txt);
+	$txt = "'dbuser' => '".$dbuser."',\n";
+	fwrite($myfile, $txt);
+	$txt = "'dbpass' => '".$dbpass."',\n";
+	fwrite($myfile, $txt);
+	$txt = "'dbhost' => '".$dbhost."',);\n";
+	fwrite($myfile, $txt);
+
+	fclose($myfile);
+	return 0;
+}
+
+
+/*
+ * Function to show first time form.
+ * This will be shown only once where db details would be collected
+ * along with the admin password and email id
+ */
+function show_first_time_form($dbname, $dbuser, $dbpass, $dbhost,
+			      $email, $pass, $debug)
+{
+	print '
+	<form method="post" action="'.htmlspecialchars($_SERVER["PHP_SELF"]).'">
+	<table>';
+
+	if ($debug) {
+		print '<tr><td></td><td><span class="error">'.$debug.'</span> </td></tr>';
+		$debug = 0;
+	}
+
+	if (!$dbhost)
+		$dbhost = "localhost";
+
+	print '
+		<h3>Free Weekly Report Tool</h3><hr>
+		<p> First Time Configuration Steps
+	<tr><td> Database Name:</td>
+	    <td> <input type="text" name="dbname" value="'.$dbname.'"> </td></tr>
+	<tr><td> Database User:</td>
+	    <td> <input type="text" name="dbuser" value="'.$dbuser.'"> </td></tr>
+	<tr><td> Database Password:</td>
+	    <td> <input type="text" name="dbpass" value="'.$dbpass.'"> </td></tr>
+	<tr><td> Database host:</td>
+	    <td> <input type="text" name="dbhost" value="'.$dbhost.'"> </td></tr>
+	<tr><td>Admin Password:</td>
+	    <td><input type="password" name="pass" value="'.$pass.'"></td>
+	    <td> <span class="error"> '.$passErr.'</span></td></tr>
+	<tr><td>Retype Admin Password:</td>
+	    <td><input type="password" name="pass1" value="'.$pass.'"></td>
+	    <td> <span class="error"> '.$passErr.'</span></td></tr>
+	<tr><td>Admin Email:</td>
+		 <td><input type="email" name="email" value="'.$email.'"></td></tr>
+	<tr>
+	   <td><input type="submit" name="Setup" value="Setup"></td>
+	    <td></td></tr>
+	</table>
+	</form>';
+print '</body> </html>';
+}
 
 /*
  * Function to add new user
@@ -487,7 +562,10 @@ function process_new_user($realname, $newname, $password, $password1,
 
 	$hash = md5($password);
 
-	$query = "insert into login values ('".$realname."', '".$newname."', '".$hash."', '".$email."', '', '', '".$manager."', 0)";
+	if ($manager == 'None')
+		$manager = $newname;
+
+	$query = "insert into login values ('".$realname."', '".$newname."', '".$hash."', '".$email."', '', '', '".$manager."', 0, 1)";
 
 	mysql_query($query) or die (mysql_error());
 }
@@ -630,7 +708,79 @@ function email() {
         mail($to, $subject, $message, $headers);
 }
 
+$configs = include('config.php');
+
+if (!isset($configs['dbname']) or !isset($configs['dbuser']) or
+    !isset($configs['dbpass']) or !isset($configs['dbhost'])) {
+
+	unset($_SESSION['Name']);
+	unset($_SESSION['admin']);
+	session_destroy();
+
+	$submit = make_safe($_POST['Setup']);
+
+	if (!$submit) {
+		show_first_time_form($dbname, $dbuser, $dbpass, $dbhost,
+				$email, $pass, 0);
+		exit();
+	} else {
+		$dbname= make_safe($_POST['dbname']);
+		$dbuser= make_safe($_POST['dbuser']);
+		$dbpass= make_safe($_POST['dbpass']);
+		$dbhost= make_safe($_POST['dbhost']);
+		$email = make_safe($_POST['email']);
+		$pass = make_safe($_POST['pass']);
+		$pass1 = make_safe($_POST['pass1']);
+
+		/* Check if passwords matches */
+		if (strcmp($pass, $pass1) != 0) {
+			$err = "Passwords do not match";
+			show_first_time_form($dbname, $dbuser, $dbpass, $dbhost,
+					     $email, $pass, $err);
+			exit();
+		} else {
+			create_config_file($dbname, $dbuser, $dbpass, $dbhost,
+					   $email, $pass);
+			sql_con();
+			$query = "CREATE TABLE `login` (
+				`Name` varchar(40) NOT NULL,
+				`User` varchar(20) NOT NULL,
+				`password` varchar(50) NOT NULL,
+				`Email` varchar(50) NOT NULL,
+				`Website` varchar(20) DEFAULT NULL,
+				`Gender` varchar(20) NOT NULL,
+				`Manager` varchar(20) NOT NULL,
+				`admin` int(11) DEFAULT NULL,
+				`status` int(11) DEFAULT NULL,
+				PRIMARY KEY (`User`))
+				ENGINE=InnoDB DEFAULT CHARSET=latin1";
+			$result = mysql_query($query) or die (mysql_error());	
+			$query = "CREATE TABLE `week_report` (
+				`Project` varchar(30) DEFAULT NULL,
+				`Task` varchar(200) NOT NULL,
+				`Percent` int(3) NOT NULL,
+				`Week` varchar(20) DEFAULT NULL,
+				`User` varchar(20) NOT NULL,
+				KEY `User` (`User`),
+				CONSTRAINT `week_report_ibfk_1`
+				FOREIGN KEY (`User`)
+				REFERENCES `login` (`User`))
+				ENGINE=InnoDB DEFAULT CHARSET=latin1";
+			$result = mysql_query($query) or die (mysql_error());	
+
+			$md5pass = md5($pass);
+
+			$query = "insert into login values ('admin', 'admin', '".$md5pass."', '".$email."','','','admin', 1, 1)";
+			$result = mysql_query($query) or die (mysql_error());	
+			print '<hr>Please login with "admin" as username<hr>
+			<a href="?">Login</a>';
+			exit;
+		}
+	}
+}
+
 session_start();
+sql_con();
 $rows = make_safe($_POST['rows']);
 if (!$rows)
 	$rows = 1;
@@ -663,7 +813,6 @@ if ($submit  == "Add a Row") {
 } else if ($save == "save") {
 	save(1);
 } else if ($submit == "register") {
-	print "O I  am her";
 	$userErr = $passErr = "";
 }
 
@@ -683,7 +832,7 @@ if ($logout == 1) {
 	session_destroy();
 }
 
-print '<html> <body> <h3>Weekly Report Tool</h3><hr>';
+print '<html> <body> <h3>Free Weekly Report Tool</h3><hr>';
 
 if(isset($_SESSION['Name'])){
 	switch ($method) {
@@ -771,7 +920,7 @@ case 2:
 	}
 	$week = make_safe($_POST["week"]);
 	print_reports($week, $_SESSION['Name']);
-	print '<hr><a href="?method='.$method.'">Back</a>';
+	print '<hr><a href="?method='.$method.'">Back</a> <a href="?">Home</a>';
 
 	break;
 case 3:
@@ -791,14 +940,14 @@ case 3:
 	$week = make_safe($_POST["week"]);
 	$subuser = make_safe($_POST["subuser"]);
 	print_reports($week, $subuser);
-	print '<hr><a href="?method='.$method.'">Back</a>';
+	print '<hr><a href="?method='.$method.'">Back</a> <a href="?">Home</a>';
 
 	break;
 case 4:
 	/* License */
 	print ' Free Weekly Report Tool <br><br>
-		Copyright (C) 2014 Namrata Powar <namrata.pawar10@gmail.com><br>
-		and Yogi P <yogi@vadactro.org.in>.<br><br>
+		Copyright (C) 2014 Namrata Powar [namrata.pawar10 at gmail.com]<br>
+		and Yogi P [yogi at vadactro.org.in].<br><br>
 		FWRT is free software: you can redistribute it and/or modify<br>
 		it under the terms of the GNU affero General Public License as published by<br>
 		the Free Software Foundation, either version 3 of the License, or<br>
@@ -809,7 +958,7 @@ case 4:
 		GNU Affero General Public License for more details.<br><br>
 
 		You should have received a copy of the GNU Affero General Public License<br>
-		along with FWRT.  If not, see <http://www.gnu.org/licenses/>.';
+		along with FWRT.  If not, see http://www.gnu.org/licenses/';
 	print '<hr><a href="?">Back</a>';
 	break;
 
@@ -853,6 +1002,9 @@ case 6:
 				$password, $password1,
 				$userErr, $passErr,
 				$manager, $email, $debug);
+		} else {
+			print '<hr>New user, '.$newname.', created.<hr>
+			<a href="?">Back</a>';
 		}
 	}
 	/* Add New user */
