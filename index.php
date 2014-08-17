@@ -90,10 +90,11 @@ function process_login($user, $password)
 	$hash = md5($password);
 	
 	sql_con();
+	$query = "SELECT Password, Name, admin from login where User='$user' and status = 1";
 
-	$result1 = mysql_query("SELECT Password, Name, admin from login where User='$user' and status = 1");
+	$result = mysql_query($query) or die (mysql_error());
 
-	$row = mysql_fetch_array($result1);
+	$row = mysql_fetch_array($result);
 
 	$result2 = strcmp($hash,$row['Password']);
 
@@ -112,7 +113,7 @@ function process_login($user, $password)
  * week - is current or last week
  * rows - number of rows
  */
-function show_create_form($week, $rows)
+function show_create_form($week, $rows, $team)
 {
 	$i = 0;
 
@@ -128,7 +129,7 @@ function show_create_form($week, $rows)
 
 		$num_rows = 0;
 
-		$query = "SELECT Task,Percent,Project FROM week_report where User='$Name'and Week='$monday'";
+		$query = "SELECT Task,Percent,Project FROM week_report where User='$Name'and Week='$monday' and team='$team'";
 		$result = mysql_query($query) or die (mysql_error());
 		$num_rows = mysql_num_rows($result);
 
@@ -172,6 +173,7 @@ function show_create_form($week, $rows)
 	<tr> <td></td><td><input type="hidden" name="rows" value="'.$rows.'"> </td>
 	<tr> <td></td><td><input type="hidden" name="create" value="create"> </td>
 	<tr> <td></td><td><input type="hidden" name="week" value="'.$week.'"> </td>
+	<tr> <td></td><td><input type="hidden" name="team" value="'.$team.'"> </td>
 	<td><input type="submit" name="submit" value="Add a Row"> </td> </tr>
 	<tr><td><input type="submit" name="save" value="save"> </td>
 	<td><input type="submit" name="submit" value="submit"> </td> </tr>
@@ -187,14 +189,17 @@ function show_create_form($week, $rows)
  *		1 - to reset password of others
  *		2 - Adding new user
  */
-function print_user_select($manager, $admin, $default)
+function print_user_select($manager, $admin, $default, $team)
 {
 	if ($admin == 1)
 		$query = "select User from login where User != '".$_SESSION['Name']."'";
+
 	else if ($admin == 2)
 		$query = "select User from login";
+
 	else
-		$query = "select User from login where manager = '".$_SESSION['Name']."'";
+		$query = "select user as User from team where level < (select level from team where user = '".$_SESSION['Name']."' and team_name = '".$team."') and team_name = '".$team."'";
+
 	sql_con();
 	$result = mysql_query($query) or die (mysql_error());	
 	$num_rows = mysql_num_rows($result);
@@ -253,6 +258,31 @@ function print_week_select($limit)
 }
 
 /*
+ * This function print week
+ * limit : # of old weeks
+ * type : 2 - show all teams
+ */
+function print_team_select($user, $type, $default)
+{
+	if ($type == 1)
+		$query = "select team_name from teams";
+	else
+		$query = "select team_name from team where user = '".$user."'";
+	$result = mysql_query($query) or die (mysql_error());
+	print '<select name="team">';
+	while($row = mysql_fetch_array($result, MYSQL_BOTH)) {
+		$team = $row["team_name"];
+		if ($team == $default)
+			print '<option selected="selected" value="'.$team.'">';
+		else
+			print '<option value="'.$team.'">';
+
+		print $team.'</option>';
+	}
+	print '</select>';
+}
+
+/*
  * to replace all linebreaks to <br/>
  */
 function nl2br2($string) {
@@ -271,27 +301,34 @@ function nl2br1($string) {
  * this code prints the table of selected week
  * week : week
  */
-function print_reports($week, $user)
+function print_reports($week, $user, $team)
 {
 	sql_con();
 	
-	echo '<table border=1><th>Sr.No.</th><th>Project</th><th width=400>Task</th><th>Percent</th><th>Week</th>';
+	echo '<table border=1><th>Sr.No.</th><th>Team</th><th>Project</th><th width=400>Task</th><th>Percent</th><th>Week</th>';
 
+	/* All Weeks */
 	if ($week == 1) {
-		if ($user == 'All')
-			$query = "select * from week_report where user in
-				  (select user from login where manager = '".$_SESSION['Name']."'
-				   and user != manager) order by week_report.user";
-		else
-			$query = "SELECT * FROM week_report where User='$user'";
+		if ($user == 'All') {
+			$user_select_query = "select user as User from team where level <
+					      (select level from team where user = '".$_SESSION['Name']."'
+					      and team_name = '".$team."') and team_name = '".$team."'";
+			$query = "select * from week_report where user in (".$user_select_query.") and
+				  team = '".$team."' order by week_report.user";
+		} else {
+			$query = "SELECT * FROM week_report where User='$user' and team='$team'";
+		}
 	} else {
 		$monday = get_monday(get_week($week));
-		if ($user == 'All')
+		if ($user == 'All') {
+			$user_select_query = "select user as User from team where level <
+					      (select level from team where user = '".$_SESSION['Name']."'
+					      and team_name = '".$team."') and team_name = '".$team."'";
 			$query = "select * from week_report where Week = '$monday' and user in
-				  (select user from login where manager = '".$_SESSION['Name']."'
-				   and user != manager) order by week_report.user";
-		else 
-			$query = "SELECT * FROM week_report where Week = '$monday' and User='$user'";
+				  (".$user_select_query.") and team = '".$team."' order by week_report.user";
+		} else {
+			$query = "SELECT * FROM week_report where Week = '$monday' and User='$user' and team='$team'";
+		}
 	}
 
 	$result = mysql_query($query) or die (mysql_error());
@@ -304,12 +341,11 @@ function print_reports($week, $user)
 			printf ('<tr><td colspan="3">'.$tmp_user.'</td>');
 		}
 		$str = $row["Task"];
-		print '<tr><td>'.$i.'</td><td>'.$row["Project"].'</td><td>'.nl2br1(nl2br2($str)).'</td><td>'.$row["Percent"].'</td><td>'.$row["Week"].'</tr>';
+		print '<tr><td>'.$i.'</td><td>'.$team.'</td><td>'.$row["Project"].'</td><td>'.nl2br1(nl2br2($str)).'</td><td>'.$row["Percent"].'</td><td>'.$row["Week"].'</tr>';
 		$i++;
 	}
 
 	echo'</table>';
-
 
 	mysql_close(con);
 }
@@ -322,6 +358,7 @@ function save($showlog)
 {
 	$rows = make_safe($_POST['rows']);
 	$opt = make_safe($_POST["week"]);
+	$team = make_safe($_POST["team"]);
 	$monday= get_monday(get_week($opt));
 	$method = make_safe($_POST['method']);
 	$Name=$_SESSION['Name'];
@@ -333,13 +370,13 @@ function save($showlog)
 
 	sql_con();
 
-	$query="DELETE from week_report where User='".$Name."' and Week='".$monday."'";
+	$query="DELETE from week_report where User='".$Name."' and Week='".$monday."' and team='".$team."'";
 	mysql_query($query) or die (mysql_error());	
 	$j=0;
 	for ($i = 0; $i < $rows; $i++) {
 		if ($task[$i]!= NULL && $percent[$i] != NULL) {
-			$query = "INSERT INTO week_report (Project,Task,Percent,Week,User)
-				  VALUES('".$proj[$i]."','".$task[$i]."','".$percent[$i]."','".$monday."','".$Name."')";
+			$query = "INSERT INTO week_report (Project,Task,Percent,Week,User,team)
+				  VALUES('".$proj[$i]."','".$task[$i]."','".$percent[$i]."','".$monday."','".$Name."','".$team."')";
 			mysql_query($query) or die (mysql_error());
 			$j++;
 		}
@@ -364,10 +401,11 @@ function submit()
 	$monday= get_monday(get_week($opt));
 	$method = make_safe($_POST['method']);
 	$Name=$_SESSION['Name'];
+	$team = make_safe($_POST["team"]);
 
 	sql_con();
 
-	$query = "select sum(percent) as Total from week_report where user = '".$Name."' and Week='".$monday."'";
+	$query = "select sum(percent) as Total from week_report where user = '".$Name."' and Week='".$monday."' and team='".$team."'";
 	$result = mysql_query($query) or die (mysql_error());
 
 	$result_arr = mysql_fetch_array($result);
@@ -377,7 +415,7 @@ function submit()
 	if ($total == 100) {
 		print "Submitting report notification to your manager";
 		print '<hr><a href="?method='.$method.'">Back</a>';
-		email();
+		email($team);
 		mysql_close($_SESSION['con']);
 		exit;
 	} else {
@@ -416,7 +454,6 @@ function create_config_file($dbname, $dbuser, $dbpass, $dbhost, $email, $pass)
 	$myfile = fopen("config.php", "w") or die("Unable to open file!");
 
 	$txt = "<?php\n\n return array(\n";
-	print $txt;
 	fwrite($myfile, $txt);
 	$txt = "'dbname' => '".$dbname."',\n";
 	fwrite($myfile, $txt);
@@ -424,7 +461,7 @@ function create_config_file($dbname, $dbuser, $dbpass, $dbhost, $email, $pass)
 	fwrite($myfile, $txt);
 	$txt = "'dbpass' => '".$dbpass."',\n";
 	fwrite($myfile, $txt);
-	$txt = "'dbhost' => '".$dbhost."',);\n";
+	$txt = "'dbhost' => '".$dbhost."');\n";
 	fwrite($myfile, $txt);
 
 	fclose($myfile);
@@ -483,7 +520,8 @@ print '</body> </html>';
  * Function to add new user
  */
 function print_add_new_user($realname, $newname, $password, $password1,
-			    $userErr, $passErr, $manager, $email, $debug)
+			    $userErr, $passErr, $email, $debug,
+			    $team, $level)
 {
 	print ' <form method="post" action="?method=6"> <table>';
 
@@ -507,10 +545,14 @@ function print_add_new_user($realname, $newname, $password, $password1,
 	    <td><input type="password" name="password1" value="'.$password1.'"></td>
 	    <td> <span class="error"> '.$passErr.'</span></td></tr>
 
-	<tr><td>Manager:</td><td>';
+	<tr><td>Team:</td><td>';
+	 print_team_select($_SESSION['Name'], 1, $team);
+	 print '</td></tr>
+	 <tr><td>Position:</td> <td>
+	 <input type="text" name="level" value="'.$level.'">';
 
-	 print_user_select($_SESSION['Name'], 2, $manager);
 	 print '</td></tr>';
+
 
 	 print ' <tr><td></td>
 		 <tr><td>Email:</td>
@@ -528,7 +570,7 @@ print '</body> </html>';
  * Function to process new user
  */
 function process_new_user($realname, $newname, $password, $password1,
-		 $manager, $email)
+			  $email, $team, $level)
 {
 	/* Check if new username is valid */
 	sql_con();
@@ -562,11 +604,10 @@ function process_new_user($realname, $newname, $password, $password1,
 
 	$hash = md5($password);
 
-	if ($manager == 'None')
-		$manager = $newname;
+	$query = "insert into login values ('".$realname."', '".$newname."', '".$hash."', '".$email."', '', 0, 1)";
+	mysql_query($query) or die (mysql_error());
 
-	$query = "insert into login values ('".$realname."', '".$newname."', '".$hash."', '".$email."', '', '', '".$manager."', 0, 1)";
-
+	$query = "insert into team values ('".$team."', '".$level."','".$newname."')";
 	mysql_query($query) or die (mysql_error());
 }
 
@@ -643,6 +684,29 @@ function process_new_user($realname, $newname, $password, $password1,
  }
 
 /*
+ * Function to print reset form  for admin
+ */
+ function print_add_new_team_form()
+ {
+	 print '<p>Add New Team</p><hr> ';
+	 print '<br> <form action ="?method=9" method="post"><br>
+		 <table border=0>
+		 <tr><td>
+		 Team Name:</td><td><input type="text" name="team" value="">
+		 </td></tr>
+		 <tr><td>
+		 Location:</td><td><input type="text" name="location" value="">
+		 </td></tr>
+		 <tr><td></td><td>
+		 <input type="submit" name="addteam" value="submit">
+		 </td></tr>
+		 </table>
+		 </form>';
+	 print '<hr><a href="?method=0">Back</a>';
+
+ }
+
+/*
  * function to reset password
  * user : User name
  * cpass : Current Password
@@ -683,17 +747,26 @@ function reset_password($user, $cpass, $npass, $n1pass, $admin)
 	}
 }
 
-function email() {
+function email($team) {
 
-        $query1 = "select Manager from login where User='".$_SESSION['Name']."'";
-        $result1 = mysql_query($query1) or die (mysql_error());
-        $array1= mysql_fetch_array($result1);
-        $manager = $array1['Manager'];
+	$query = "select user as Manager from team where level - 1 = (select level from team where user = '".$_SESSION['Name']."' and team_name = '".$team."') and team_name = '".$team."'";
+	$result = mysql_query($query) or die (mysql_error());
+	$no_of_managers = mysql_num_rows($result);
 
-        $query2 = "select Email from login where User='$manager'";
-        $result2 = mysql_query($query2) or die (mysql_error());
-        $array2= mysql_fetch_array($result2);
-        $to = $array2['Email'];
+	if ($no_of_managers == 0)
+		return 0;
+
+	while($row= mysql_fetch_array($result)){
+		$manager = $row['Manager'];
+		$query2 = "select Email from login where User='$manager'";
+		$result2 = mysql_query($query2) or die (mysql_error());
+		$array2= mysql_fetch_array($result2);
+		if ($to) {
+			$to = $to.", ";
+		}
+		$to = $to.$array2['Email'];
+	}
+
         $subject = "Weekly report notification";
         $message = "Dear User,<br><br>".$_SESSION['Name']."\r\t has submitted a weekly report.<br><br>".
                     "Note that this mail has been auto-generated.<br>".
@@ -742,37 +815,63 @@ if (!isset($configs['dbname']) or !isset($configs['dbuser']) or
 			create_config_file($dbname, $dbuser, $dbpass, $dbhost,
 					   $email, $pass);
 			sql_con();
+			$query = "DROP TABLE IF EXISTS `login`";
+			$result = mysql_query($query) or die (mysql_error());	
 			$query = "CREATE TABLE `login` (
 				`Name` varchar(40) NOT NULL,
 				`User` varchar(20) NOT NULL,
 				`password` varchar(50) NOT NULL,
 				`Email` varchar(50) NOT NULL,
-				`Website` varchar(20) DEFAULT NULL,
 				`Gender` varchar(20) NOT NULL,
-				`Manager` varchar(20) NOT NULL,
 				`admin` int(11) DEFAULT NULL,
 				`status` int(11) DEFAULT NULL,
-				PRIMARY KEY (`User`))
-				ENGINE=InnoDB DEFAULT CHARSET=latin1";
+				PRIMARY KEY (`User`)
+					) ENGINE=InnoDB DEFAULT CHARSET=latin1";
 			$result = mysql_query($query) or die (mysql_error());	
+			$query = "DROP TABLE IF EXISTS `week_report`";
+			$result = mysql_query($query) or die (mysql_error());	
+
 			$query = "CREATE TABLE `week_report` (
 				`Project` varchar(30) DEFAULT NULL,
 				`Task` varchar(200) NOT NULL,
 				`Percent` int(3) NOT NULL,
 				`Week` varchar(20) DEFAULT NULL,
 				`User` varchar(20) NOT NULL,
+				`team` varchar(20) DEFAULT NULL,
 				KEY `User` (`User`),
 				CONSTRAINT `week_report_ibfk_1`
-				FOREIGN KEY (`User`)
-				REFERENCES `login` (`User`))
-				ENGINE=InnoDB DEFAULT CHARSET=latin1";
+				FOREIGN KEY (`User`) REFERENCES `login` (`User`)
+					) ENGINE=InnoDB DEFAULT CHARSET=latin1";
+			$result = mysql_query($query) or die (mysql_error());	
+
+			$query = "DROP TABLE IF EXISTS `teams`";
+			$result = mysql_query($query) or die (mysql_error());	
+			$query="CREATE TABLE `teams` (
+			  `team_name` varchar(20) NOT NULL DEFAULT '',
+			  `location` varchar(20) DEFAULT NULL,
+			  PRIMARY KEY (`team_name`)
+			) ENGINE=InnoDB DEFAULT CHARSET=latin1";
+			$result = mysql_query($query) or die (mysql_error());	
+
+			$query = "DROP TABLE IF EXISTS `team`";
+			$result = mysql_query($query) or die (mysql_error());	
+			$query = "CREATE TABLE `team` (
+			  `team_name` varchar(20) NOT NULL DEFAULT '',
+			  `level` int(2) DEFAULT NULL,
+			  `user` varchar(20) NOT NULL,
+			  PRIMARY KEY (`team_name`,`user`),
+			  KEY `user` (`user`),
+			  CONSTRAINT `team_ibfk_2` FOREIGN KEY (`team_name`) REFERENCES `teams` (`team_name`),
+			  CONSTRAINT `team_ibfk_1` FOREIGN KEY (`user`) REFERENCES `login` (`User`)
+			) ENGINE=InnoDB DEFAULT CHARSET=latin1";
 			$result = mysql_query($query) or die (mysql_error());	
 
 			$md5pass = md5($pass);
 
-			$query = "insert into login values ('admin', 'admin', '".$md5pass."', '".$email."','','','admin', 1, 1)";
+			$query = "insert into login values ('admin', 'admin', '".$md5pass."', '".$email."','', 1, 1)";
 			$result = mysql_query($query) or die (mysql_error());	
-			print '<hr>Please login with "admin" as username<hr>
+
+			print '<hr>Please login with "admin" as the username<hr>
 			<a href="?">Login</a>';
 			exit;
 		}
@@ -869,12 +968,13 @@ case 0:
 
 	print '<li><a href="?method=1">Create new report</a></li>
 	<li><a href="?method=2">View old report/reports</a></li>';
-	$query = "select User from login where manager = '".$_SESSION['Name']."'";
+	$query = "select max(level) as max_level from team where user = '".$_SESSION['Name']."'";
 	sql_con();
 	$result = mysql_query($query) or die (mysql_error());	
-	$num_rows = mysql_num_rows($result);
+	$result_arr = mysql_fetch_array($result);
+	$max_level = $result_arr['max_level'];
 
-	if ($num_rows)
+	if ($max_level)
 		print '<li><a href="?method=3">View weekly report of subordinates</a></li>';
 
 	print '<li><a href="?method=5">Reset Password</a></li>';
@@ -883,6 +983,7 @@ case 0:
 	/* Admin tasks */
 	if (isset($_SESSION['admin'])) {
 		print '<hr> <h5> Admin Tasks </h5> <hr>';
+		print '<li><a href="?method=9">Add New Team</a></li>';
 		print '<li><a href="?method=6">Add New User</a></li>';
 		print '<li><a href="?method=7">Block existing User</a></li>';
 		print '<li><a href="?method=8">Reset Password</a></li>';
@@ -895,6 +996,7 @@ case 1:
 	if (!$create) {
 		print ' <form name="weekly report" method="post" action="?method=1">';
 		/* Create report only for current/last week */
+		print_team_select($_SESSION['Name'], 0, 0);
 		print_week_select(1);
 		print '<input type="submit" name="create" value="create">';
 		print '</form>';
@@ -902,7 +1004,8 @@ case 1:
 		break;
 	}
 	$week = make_safe($_POST["week"]);
-	show_create_form($week, $rows);
+	$team = make_safe($_POST["team"]);
+	show_create_form($week, $rows, $team);
 
 	break;
 /* View old/current reports */
@@ -912,6 +1015,7 @@ case 2:
 	{
 		/* Display week select from last 4 weeks */
 		print ' <form name="weekly report" method="post" action="?method=2">';
+		print_team_select($_SESSION['Name'], 0);
 		print_week_select(4);
 		print '<input type="submit" name="print" value="print">';
 		print '</form>';
@@ -919,27 +1023,48 @@ case 2:
 		break;
 	}
 	$week = make_safe($_POST["week"]);
-	print_reports($week, $_SESSION['Name']);
+	$team = make_safe($_POST["team"]);
+	print_reports($week, $_SESSION['Name'], $team);
 	print '<hr><a href="?method='.$method.'">Back</a> <a href="?">Home</a>';
 
 	break;
 case 3:
 	/* View reports of subordinates */
+	$query = "select team_name from team where user = '".$_SESSION['Name']."'";
+	$result = mysql_query($query) or die (mysql_error());
+	$no_of_teams = mysql_num_rows($result);
+	if ($no_of_teams > 1) {
+		$team = make_safe($_POST['team']);
+		if (!$team) {
+			print '<p> Select a Team </p>';
+			print '<form name="weekly report" method="post" action="?method=3">';
+			print_team_select($_SESSION['Name'], 0);
+			print '<input type="submit" name="select_team" value="Select">';
+			print '</form>';
+			print '<hr><a href="?method=0">Back</a>';
+			break;
+		}
+	} else {
+		$result_arr = mysql_fetch_array($result);
+		$team = $result_arr['team_name'];
+	}
+
 	$print = make_safe($_POST['print']);
-	if (!$print)
-	{
+	if (!$print) {
 		/* Display week select from last 4 weeks */
 		print ' <form name="weekly report" method="post" action="?method=3">';
-		print_user_select($_SESSION['Name'], 0);
+		print_user_select($_SESSION['Name'], 0, 0, $team);
 		print_week_select(4);
+		print '<input type="hidden" name="team" value="'.$team.'">';
 		print '<input type="submit" name="print" value="print">';
 		print '</form>';
 		print '<hr><a href="?method=0">Back</a>';
 		break;
 	} 
 	$week = make_safe($_POST["week"]);
+	$team = make_safe($_POST["team"]);
 	$subuser = make_safe($_POST["subuser"]);
-	print_reports($week, $subuser);
+	print_reports($week, $subuser, $team);
 	print '<hr><a href="?method='.$method.'">Back</a> <a href="?">Home</a>';
 
 	break;
@@ -983,25 +1108,28 @@ case 6:
 	$newname = make_safe($_POST['user']);
 	$password = make_safe($_POST['password']);
 	$password1 = make_safe($_POST['password1']);
-	$manager = make_safe($_POST['subuser']);
 	$email = make_safe($_POST['email']);
+	$team = make_safe($_POST['team']);
+	$level = make_safe($_POST['level']);
 
 	if (!$realname || !$newname || !$password || !$password1 ||
-	    !$manager || !$email) {
+	    !$email || !$team || !$level) {
 		print_add_new_user($realname, $newname,
 				$password, $password1,
 				$userErr, $passErr,
-				$manager, $email, 0);
+				$email, 0,
+				$team, $level);
 	} else {
 		$debug = process_new_user($realname, $newname,
 				$password, $password1,
-				$manager, $email);
+				$email, $team, $level);
 
 		if ($debug) {
 			print_add_new_user($realname, $newname,
 				$password, $password1,
 				$userErr, $passErr,
-				$manager, $email, $debug);
+				$email, $debug,
+				$team, $level);
 		} else {
 			print '<hr>New user, '.$newname.', created.<hr>
 			<a href="?">Back</a>';
@@ -1037,6 +1165,23 @@ case 8:
 		$s2 = make_safe($_POST['password2']);
 		$s3 = make_safe($_POST['password3']);
 		reset_password($subuser, $s1, $s2, $s3, 1);
+		print '<hr><a href="?method=0">Back</a>';
+	}
+	break;
+case 9:
+	if (!$_SESSION['admin'])
+		break;
+
+	/* Add new Team */
+	$addteam = make_safe($_POST['addteam']);
+	if(!$addteam){
+		print_add_new_team_form();
+	} else {
+		$team = make_safe($_POST['team']);
+		$location = make_safe($_POST['location']);
+		$query="insert into teams values ('".$team."','".$location."')";
+		$result = mysql_query($query) or die (mysql_error());
+		print '<p> New Team Added</p>';
 		print '<hr><a href="?method=0">Back</a>';
 	}
 	break;

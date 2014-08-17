@@ -2,7 +2,7 @@ Free Weekly Report Tool
 =======================
 Version
 -------
-	0.2
+	0.3
 
 License
 -------
@@ -41,9 +41,11 @@ features implemented.
    All the data is stored in database such as Mysql.
 2. Installation is simple. Please read following INSTALL section for details.
 3. User can save and/or submit their weekly report of current and last week.
-4. Every successful submit of report would send a notification to user's
+4. A user can have multiple managers.
+5. A user can be part of multiple teams.
+6. Every successful submit of report would send a notification to user's
    manager.
-5. Users can view their specific week's report or all the reports submitted so
+7. Users can view their specific week's report or all the reports submitted so
    far. Managers can view his weekly reports  or of his team members.
-6. Admin user can add new user, block any existing user and reset passwords of
+8. Admin user can add new user, block any existing user and reset passwords of
    any user. Non-admin can change his/her password.

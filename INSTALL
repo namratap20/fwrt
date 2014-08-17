@@ -1,11 +1,15 @@
 To use this FWRT perform following
 
 a)  Mysql user creation and grant permissions 
-i.  	create db wrt_db;
+i.  	create database wrt_db;
 ii. 	GRANT ALL ON wrt_db.* to 'wrt_user'@'localhost' identified by 'somepassword';
 
-b) Fill in these mysql details alonge with admin's password and email.
+b) untar 'fwrt' source at location accessible for the web server.
 
-c) All the mysql connection details would be stored in config.php.
+c) cd fwrt; touch config.php; make sure config.php is writable for the web server.
 
-d) Then login with user name as 'admin' and provided password.
+d) Fill in these mysql details alonge with admin's password and email.
+
+e) All the mysql connection details would be stored in config.php.
+
+f) Then login with user name as 'admin' and provided password.
